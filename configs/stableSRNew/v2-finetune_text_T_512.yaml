@@ -6,24 +6,30 @@ model:
     # parameterization: "v"
     linear_start: 0.00085
     linear_end: 0.0120
+    timesteps: 1000
     num_timesteps_cond: 1
     log_every_t: 200
-    timesteps: 1000
+    
+
     first_stage_key: image
     cond_stage_key: caption
     image_size: 512
     channels: 4
     cond_stage_trainable: False   # Note: different from the one we trained before
     conditioning_key: crossattn
-    monitor: val/loss_simple_ema
     scale_factor: 0.18215
+    monitor: val/loss_simple_ema
+
     use_ema: False
+
     # for training only
-    # ckpt_path: /mnt/lustre/jywang/code/stable_diffmodels/v2-1_512-ema-pruned.ckpt
+    ckpt_path: /home/fasc/stable_diffmodels/stable-diffusion-2-1-base/v2-1_512-ema-pruned.ckpt
+    
     unfrozen_diff: False
     random_size: False
     time_replace: 1000
     use_usm: True
+    
     #P2 weighting, we do not use in final version
     p2_gamma: ~
     p2_k: ~
@@ -52,7 +58,7 @@ model:
       target: ldm.models.autoencoder.AutoencoderKL
       params:
         # for training only
-        # ckpt_path: /mnt/lustre/jywang/code/stable_diffmodels/v2-1_512-ema-pruned.ckpt
+        ckpt_path: /home/fasc/stable_diffmodels/stable-diffusion-2-1-base/v2-1_512-ema-pruned.ckpt
         embed_dim: 4
         monitor: val/rec_loss
         ddconfig:
@@ -72,6 +78,16 @@ model:
           dropout: 0.0
         lossconfig:
           target: torch.nn.Identity
+
+    quave_config:
+      target: quave.ImageFusionNetworkPL
+      params:
+        # learning_rate: 1e-4
+        in_channels: 3
+        out_channels: 3
+        wavelet_type: "qwt"  # Options: "dwt" or "qwt"
+        ckpt_path: /home/fasc/QWT/src/quave/results/div2k_quave.ckpt
+        double_last_layer: True
 
     cond_stage_config:
       target: ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder
@@ -135,10 +151,12 @@ data:
       target: basicsr.data.realesrgan_dataset.RealESRGANDataset
       params:
         queue_size: 180
-        gt_path: ['/mnt/lustre/share/jywang/dataset/DIV8K/train_HR/', '/mnt/lustre/share/jywang/dataset/df2k_ost/GT/']
+        gt_path: ['/home/fasc/QWT/data/DIV2K/train_HR/']
+        # gt_path: ['/mnt/lustre/share/jywang/dataset/DIV8K/train_HR/', '/mnt/lustre/share/jywang/dataset/df2k_ost/GT/']
         face_gt_path: '/mnt/lustre/share/jywang/dataset/FFHQ/1024/'
         num_face: 10000
         crop_size: 512
+
         io_backend:
           type: disk
 
@@ -159,15 +177,17 @@ data:
         betap_range2: [1, 1.5]
 
         final_sinc_prob: 0.8
-
         gt_size: 512
         use_hflip: True
         use_rot: False
+
     validation:
       target: basicsr.data.realesrgan_dataset.RealESRGANDataset
       params:
-        gt_path: /mnt/lustre/share/jywang/dataset/ImageSR/DIV2K/DIV2K_train_HR/
+        # gt_path: /mnt/lustre/share/jywang/dataset/ImageSR/DIV2K/DIV2K_train_HR/
+        gt_path: /home/fasc/QWT/data/DIV2K/train_HR/
         crop_size: 512
+
         io_backend:
           type: disk
 
@@ -188,7 +208,6 @@ data:
         betap_range2: [1, 1.5]
 
         final_sinc_prob: 0.8
-
         gt_size: 512
         use_hflip: True
         use_rot: False
@@ -202,7 +221,8 @@ test_data:
     test:
       target: basicsr.data.realesrgan_dataset.RealESRGANDataset
       params:
-        gt_path: /mnt/lustre/share/jywang/dataset/ImageSR/DIV2K/DIV2K_train_HR/
+        # gt_path: /mnt/lustre/share/jywang/dataset/ImageSR/DIV2K/DIV2K_train_HR/
+        gt_path: /home/fasc/QWT/data/DIV2K/valid_HR/
         crop_size: 512
         io_backend:
           type: disk
@@ -232,14 +252,15 @@ test_data:
 lightning:
   modelcheckpoint:
     params:
-      every_n_train_steps: 1500
+      every_n_train_steps: 500
   callbacks:
     image_logger:
       target: main.ImageLogger
       params:
-        batch_frequency: 1500
+        batch_frequency: 500
         max_images: 4
         increase_log_steps: False
+
 
   trainer:
     benchmark: True

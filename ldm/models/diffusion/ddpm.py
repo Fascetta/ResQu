@@ -304,7 +304,7 @@ class DDPM(pl.LightningModule):
                     print(f"{context}: Restored training weights")
 
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
-        sd = torch.load(path, map_location="cpu")
+        sd = torch.load(path, map_location="cpu", weights_only=False)
         if "state_dict" in list(sd.keys()):
             sd = sd["state_dict"]
         keys = list(sd.keys())
@@ -1566,6 +1566,7 @@ class LatentDiffusionSRTextWT(DDPM):
                  first_stage_config,
                  cond_stage_config,
                  structcond_stage_config,
+                 quave_config,
                  num_timesteps_cond=None,
                  cond_stage_key="image",
                  cond_stage_trainable=False,
@@ -1615,6 +1616,7 @@ class LatentDiffusionSRTextWT(DDPM):
         self.instantiate_first_stage(first_stage_config)
         self.instantiate_cond_stage(cond_stage_config)
         self.instantiate_structcond_stage(structcond_stage_config)
+        self.instantiate_quave(quave_config)
         self.cond_stage_forward = cond_stage_forward
         self.clip_denoised = False
         self.bbox_tokenizer = None
@@ -1743,6 +1745,13 @@ class LatentDiffusionSRTextWT(DDPM):
         model = instantiate_from_config(config)
         self.structcond_stage_model = model
         self.structcond_stage_model.train()
+
+    def instantiate_quave(self, config):
+        from quave import ImageFusionNetworkPL
+        model = ImageFusionNetworkPL.load_from_checkpoint(config.params.ckpt_path)
+        print(f"Quave restored from {config.params.ckpt_path}")
+        self.quave_model = model
+        self.quave_model.eval()
 
     def _get_denoise_row_from_list(self, samples, desc='', force_no_decoder_quantization=False):
         denoise_row = []
@@ -2101,6 +2110,17 @@ class LatentDiffusionSRTextWT(DDPM):
 
         encoder_posterior_y = self.encode_first_stage(y)
         z_gt = self.get_first_stage_encoding(encoder_posterior_y).detach()
+        
+        _, quave_embedding = self.quave_model(y, return_features=True)
+        
+        # Step 1: Pooling to reduce spatial dimensions
+        pooling = nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling to [6, 48, 1, 1]
+        quave_embedding_pooled = pooling(quave_embedding).view(quave_embedding.size(0), -1)  # Flatten to [6, 48]
+
+        # Step 2: Linear layer to project to [6, 1024]
+        self.quave_projection = nn.Linear(quave_embedding_pooled.size(1), 512).to(self.device)  # [48 -> 1024]
+        quave_embedding = self.quave_projection(quave_embedding_pooled)  # [6, 1024]
+        
 
         xc = None
         if self.use_positional_encodings:
@@ -2122,6 +2142,8 @@ class LatentDiffusionSRTextWT(DDPM):
             out.extend([x, self.gt, xrec])
         if return_original_cond:
             out.append(xc)
+            
+        out.append(quave_embedding)
 
         return out
 
@@ -2287,11 +2309,11 @@ class LatentDiffusionSRTextWT(DDPM):
             return self.first_stage_model.encode(x)
 
     def shared_step(self, batch, **kwargs):
-        x, c, gt = self.get_input(batch, self.first_stage_key)
-        loss = self(x, c, gt)
+        x, c, gt, quave_embed = self.get_input(batch, self.first_stage_key)
+        loss = self(x, c, gt, quave_embed)
         return loss
 
-    def forward(self, x, c, gt, *args, **kwargs):
+    def forward(self, x, c, gt, quave_embed, *args, **kwargs):
         index = np.random.randint(0, self.num_timesteps, size=x.size(0))
         t = torch.from_numpy(index)
         t = t.to(self.device).long()
@@ -2312,7 +2334,7 @@ class LatentDiffusionSRTextWT(DDPM):
         if self.test_gt:
             struc_c = self.structcond_stage_model(gt, t_ori)
         else:
-            struc_c = self.structcond_stage_model(x, t_ori)
+            struc_c = self.structcond_stage_model(x, t_ori, quave_embed)
         return self.p_losses(gt, c, struc_c, t, t_ori, x, *args, **kwargs)
 
     def _rescale_annotations(self, bboxes, crop_coordinates):  # TODO: move to dataset
@@ -2859,6 +2881,7 @@ class LatentDiffusionSRTextWT(DDPM):
                       log_every_t=None, time_replace=None, adain_fea=None, interfea_path=None,
                       unconditional_conditioning=None,
                       unconditional_guidance_scale=None,
+                      quave_embed= None,
                       reference_sr=None, reference_lr=0.05, reference_step=1, reference_range=[100, 1000]):
 
         if not log_every_t:
@@ -2899,12 +2922,12 @@ class LatentDiffusionSRTextWT(DDPM):
                 if start_T is not None:
                     if self.ori_timesteps[i] > start_T:
                          continue
-                struct_cond_input = self.structcond_stage_model(struct_cond, t_replace)
+                struct_cond_input = self.structcond_stage_model(struct_cond, t_replace, quave_embed)
             else:
                 if start_T is not None:
                     if i > start_T:
                         continue
-                struct_cond_input = self.structcond_stage_model(struct_cond, ts)
+                struct_cond_input = self.structcond_stage_model(struct_cond, ts, quave_embed)
 
             if interfea_path is not None:
                 batch_list.append(struct_cond_input)

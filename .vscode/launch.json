@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Run main.py with Args",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",  // Path to your script
+            "console": "integratedTerminal",
+            "args": [
+                "--train",
+                "--base", "configs/stableSRNew/v2-finetune_text_T_512.yaml",
+                "--gpus", " 0 ",
+                "--name", "NAME",
+                "--scale_lr", "False"
+            ]
+        }
+    ]
+}

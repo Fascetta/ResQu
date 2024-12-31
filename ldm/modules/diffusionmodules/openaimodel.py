@@ -1388,9 +1388,9 @@ class EncoderUNetModelWT(nn.Module):
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
-            linear(model_channels, time_embed_dim),
+            linear(model_channels, 512),
             nn.SiLU(),
-            linear(time_embed_dim, time_embed_dim),
+            linear(512, 512),
         )
 
         self.input_blocks = nn.ModuleList(
@@ -1513,7 +1513,7 @@ class EncoderUNetModelWT(nn.Module):
         self.input_blocks.apply(convert_module_to_f32)
         self.middle_block.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps):
+    def forward(self, x, timesteps, quave_embed=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -1521,7 +1521,10 @@ class EncoderUNetModelWT(nn.Module):
         :return: an [N x K] Tensor of outputs.
         """
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
-
+        if quave_embed is not None:
+            # print(f"Shape of quave_embed: {quave_embed.shape}")
+            # print(f"Shape of emb: {emb.shape}")
+            emb = th.cat([emb,quave_embed],dim=1)
         result_list = []
         results = {}
         h = x.type(self.dtype)

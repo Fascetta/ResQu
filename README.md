@@ -6,7 +6,6 @@ ResQu is a **Quaternion Wavelet-Conditioned Diffusion Model** designed to enhanc
 
 ![Image comparison](https://github.com/user-attachments/assets/e0028ade-f6bd-473e-907c-5817ac765836)
 
-
 ## Key Features
 - **Wavelet-Based Preprocessing**: Integrates quaternion wavelet decomposition to enhance texture details.
 - **Diffusion Model for Super-Resolution**: Uses a conditional denoising diffusion model (StableSR baseline).
@@ -14,10 +13,13 @@ ResQu is a **Quaternion Wavelet-Conditioned Diffusion Model** designed to enhanc
 - **Multi-Scale Feature Conditioning**: Enables enhanced frequency-aware feature learning.
 
 ## Paper
-- **Title**: Quaternion Wavelet-Conditioned Diffusion for Image Super-Resolution
-- **Status**: Under Review at **IJCNN 2025**
+
+📄 **Quaternion Wavelet-Conditioned Diffusion for Image Super-Resolution**  
+Accepted for publication at **IJCNN 2025** – IEEE International Joint Conference on Neural Networks.  
+To appear in the official **IEEE proceedings**.
 
 ## Methodology
+
 ResQu leverages a **multi-scale frequency decomposition** using quaternion wavelets, feeding wavelet-conditioned embeddings into a diffusion model. The architecture consists of:
 1. **Wavelet Decomposition**: Extracts low- and high-frequency components.
 2. **Quaternion Embeddings**: Encodes spatial-frequency information.
@@ -34,7 +36,6 @@ ResQu leverages a **multi-scale frequency decomposition** using quaternion wavel
   year = {2024}
 }
 ```
-
 ### Quave
 ```bibtex
 @misc{sigillo2024generalizing,
@@ -46,9 +47,3 @@ ResQu leverages a **multi-scale frequency decomposition** using quaternion wavel
       primaryClass={eess.IV}
 }
 ```
-
----
-
-## Acknowledgment
-
-This project is based on the StableSR framework developed by researchers at Nanyang Technological University and the QUAVE framework developed at Sapienza University. Their combined capabilities offer a powerful approach to image super-resolution.

@@ -70,6 +70,16 @@ model:
           dropout: 0.0
         lossconfig:
           target: torch.nn.Identity
+    
+    quave_config:
+      target: quave.ImageFusionNetworkPL
+      params:
+        # learning_rate: 1e-4
+        in_channels: 3
+        out_channels: 3
+        wavelet_type: "qwt"  # Options: "dwt" or "qwt"
+        ckpt_path: ./quave/results/full_dataset_batch6_quave.ckpt
+        double_last_layer: True
 
     cond_stage_config:
       target: ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder

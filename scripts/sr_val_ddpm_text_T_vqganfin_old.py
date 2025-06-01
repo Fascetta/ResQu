@@ -312,6 +312,10 @@ def main():
 					init_latent = model.get_first_stage_encoding(init_latent_generator)
 					text_init = ['']*init_image.size(0)
 					semantic_c = model.cond_stage_model(text_init)
+     
+					_, quave_embedding = model.quave_model(init_image, return_features=True)
+					quave_embedding_pooled = model.pooling(quave_embedding).view(quave_embedding.size(0), -1)
+					quave_embedding = model.quave_projection(quave_embedding_pooled)
 
 					noise = torch.randn_like(init_latent)
 					# If you would like to start from the intermediate steps, you can add noise to LR to the specific steps.
@@ -320,7 +324,7 @@ def main():
 					x_T = model.q_sample_respace(x_start=init_latent, t=t, sqrt_alphas_cumprod=sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod=sqrt_one_minus_alphas_cumprod, noise=noise)
 					x_T = None
 
-					samples, _ = model.sample(cond=semantic_c, struct_cond=init_latent, batch_size=init_image.size(0), timesteps=opt.ddpm_steps, time_replace=opt.ddpm_steps, x_T=x_T, return_intermediates=True)
+					samples, _ = model.sample(cond=semantic_c, quave_embed=quave_embedding, struct_cond=init_latent, batch_size=init_image.size(0), timesteps=opt.ddpm_steps, time_replace=opt.ddpm_steps, x_T=x_T, return_intermediates=True)
 					x_samples = vq_model.decode(samples * 1. / model.scale_factor, enc_fea_lq)
 					if opt.colorfix_type == 'adain':
 						x_samples = adaptive_instance_normalization(x_samples, init_image)

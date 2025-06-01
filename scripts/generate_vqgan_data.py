@@ -384,7 +384,7 @@ def main():
                         total_num += 1
                         continue
                     else:
-                        init_latent, text_init, latent_gt, init_image, gt, gt_recon = model.get_input(samples, return_first_stage_outputs=True)
+                        init_latent, text_init, latent_gt, init_image, gt, gt_recon, quave_embed = model.get_input(samples, return_first_stage_outputs=True)
                         text_init = ['']*init_image.size(0)
                         semantic_c = model.cond_stage_model(text_init)
 
@@ -394,7 +394,7 @@ def main():
                         x_T = model_ori.q_sample(x_start=init_latent, t=t, noise=noise)
                         # x_T = None
 
-                        samples, _ = model.sample(cond=semantic_c, struct_cond=init_latent, batch_size=init_image.size(0), timesteps=opt.ddpm_steps, time_replace=opt.ddpm_steps, x_T=x_T, return_intermediates=True, adain_fea=None)
+                        samples, _ = model.sample(cond=semantic_c, quave_embed=quave_embed, struct_cond=init_latent, batch_size=init_image.size(0), timesteps=opt.ddpm_steps, time_replace=opt.ddpm_steps, x_T=x_T, return_intermediates=True, adain_fea=None)
 
                         x_samples = model.decode_first_stage(samples)
                         x_samples = torch.clamp((x_samples + 1.0) / 2.0, min=0.0, max=1.0)

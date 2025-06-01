@@ -273,7 +273,7 @@ class ResBlock(TimestepBlock):
         self.emb_layers = nn.Sequential(
             nn.SiLU(),
             linear(
-                emb_channels,
+                emb_channels * 2,
                 2 * self.out_channels if use_scale_shift_norm else self.out_channels,
             ),
         )
@@ -1513,7 +1513,7 @@ class EncoderUNetModelWT(nn.Module):
         self.input_blocks.apply(convert_module_to_f32)
         self.middle_block.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps):
+    def forward(self, x, timesteps, quave_embed=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -1521,7 +1521,10 @@ class EncoderUNetModelWT(nn.Module):
         :return: an [N x K] Tensor of outputs.
         """
         emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
-
+        if quave_embed is not None:
+            # print(f"Shape of quave_embed: {quave_embed.shape}")
+            # print(f"Shape of emb: {emb.shape}")
+            emb = th.cat([emb,quave_embed],dim=1)
         result_list = []
         results = {}
         h = x.type(self.dtype)

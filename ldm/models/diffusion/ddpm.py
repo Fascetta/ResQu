@@ -8,6 +8,7 @@ https://github.com/CompVis/taming-transformers
 
 import torch
 import torch.nn as nn
+import torch.nn.init as init
 import numpy as np
 import pytorch_lightning as pl
 from torch.optim.lr_scheduler import LambdaLR
@@ -305,22 +306,47 @@ class DDPM(pl.LightningModule):
 
     def init_from_ckpt(self, path, ignore_keys=list(), only_model=False):
         sd = torch.load(path, map_location="cpu")
+        
+        # Check if the checkpoint has "state_dict" as the root
         if "state_dict" in list(sd.keys()):
             sd = sd["state_dict"]
+        
+        # Remove ignored keys
         keys = list(sd.keys())
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
+                    print(f"Deleting key {k} from state_dict.")
                     del sd[k]
-        missing, unexpected = self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(
-            sd, strict=False)
+        
+        # Handle mismatched shapes
+        model_state_dict = self.state_dict() if not only_model else self.model.state_dict()
+        for name, param in sd.items():
+            if name in model_state_dict and param.shape != model_state_dict[name].shape:
+                print(f"Resizing layer {name} from {param.shape} to {model_state_dict[name].shape}.")
+                # Handle mismatched weights
+                resized_param = torch.zeros_like(model_state_dict[name])
+                # Copy weights from checkpoint
+                resized_param[:, :param.shape[1]] = param if param.shape[1] <= resized_param.shape[1] else param[:, :resized_param.shape[1]]
+                # Initialize the remaining dimensions randomly
+                if param.shape[1] < resized_param.shape[1]:
+                    init.normal_(resized_param[:, param.shape[1]:], mean=0.0, std=0.02)
+                sd[name] = resized_param
+
+        # Load state_dict into the model
+        if not only_model:
+            missing, unexpected = self.load_state_dict(sd, strict=False)
+        else:
+            missing, unexpected = self.model.load_state_dict(sd, strict=False)
+        
+        # Log results
         print('<<<<<<<<<<<<>>>>>>>>>>>>>>>')
         print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
         if len(missing) > 0:
             print(f"Missing Keys: {missing}")
         if len(unexpected) > 0:
             print(f"Unexpected Keys: {unexpected}")
+
 
     def q_mean_variance(self, x_start, t):
         """
@@ -1566,6 +1592,7 @@ class LatentDiffusionSRTextWT(DDPM):
                  first_stage_config,
                  cond_stage_config,
                  structcond_stage_config,
+                 quave_config,
                  num_timesteps_cond=None,
                  cond_stage_key="image",
                  cond_stage_trainable=False,
@@ -1582,6 +1609,8 @@ class LatentDiffusionSRTextWT(DDPM):
                  time_replace=None,
                  use_usm=False,
                  mix_ratio=0.0,
+                 quave_projection_dim=1024,
+                 quave_embedding_dim=48,
                  *args, **kwargs):
         # put this in your init
         self.num_timesteps_cond = default(num_timesteps_cond, 1)
@@ -1592,6 +1621,9 @@ class LatentDiffusionSRTextWT(DDPM):
         self.time_replace = time_replace
         self.use_usm = use_usm
         self.mix_ratio = mix_ratio
+        self.quave_projection_dim = quave_projection_dim
+        self.quave_embedding_dim = quave_embedding_dim
+        
         assert self.num_timesteps_cond <= kwargs['timesteps']
         # for backwards compatibility after implementation of DiffusionWrapper
         if conditioning_key is None:
@@ -1601,6 +1633,8 @@ class LatentDiffusionSRTextWT(DDPM):
         ckpt_path = kwargs.pop("ckpt_path", None)
         ignore_keys = kwargs.pop("ignore_keys", [])
         super().__init__(conditioning_key=conditioning_key, *args, **kwargs)
+        self.pooling = nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
+        self.quave_projection = nn.Linear(quave_embedding_dim, quave_projection_dim)
         self.concat_mode = concat_mode
         self.cond_stage_trainable = cond_stage_trainable
         self.cond_stage_key = cond_stage_key
@@ -1615,6 +1649,7 @@ class LatentDiffusionSRTextWT(DDPM):
         self.instantiate_first_stage(first_stage_config)
         self.instantiate_cond_stage(cond_stage_config)
         self.instantiate_structcond_stage(structcond_stage_config)
+        self.instantiate_quave(quave_config)
         self.cond_stage_forward = cond_stage_forward
         self.clip_denoised = False
         self.bbox_tokenizer = None
@@ -1743,6 +1778,13 @@ class LatentDiffusionSRTextWT(DDPM):
         model = instantiate_from_config(config)
         self.structcond_stage_model = model
         self.structcond_stage_model.train()
+
+    def instantiate_quave(self, config):
+        from quave.quave import ImageFusionNetworkPL
+        model = ImageFusionNetworkPL.load_from_checkpoint(config.params.ckpt_path)
+        print(f"Quave restored from {config.params.ckpt_path}")
+        self.quave_model = model
+        self.quave_model.eval()
 
     def _get_denoise_row_from_list(self, samples, desc='', force_no_decoder_quantization=False):
         denoise_row = []
@@ -2101,6 +2143,15 @@ class LatentDiffusionSRTextWT(DDPM):
 
         encoder_posterior_y = self.encode_first_stage(y)
         z_gt = self.get_first_stage_encoding(encoder_posterior_y).detach()
+        
+        _, quave_embedding = self.quave_model(y, return_features=True)
+
+        # Step 1: Pooling to reduce spatial dimensions
+        quave_embedding_pooled = self.pooling(quave_embedding).view(quave_embedding.size(0), -1)  # Flatten
+
+        # Step 2: Project to the desired dimension
+        quave_embedding = self.quave_projection(quave_embedding_pooled)
+        
 
         xc = None
         if self.use_positional_encodings:
@@ -2122,6 +2173,7 @@ class LatentDiffusionSRTextWT(DDPM):
             out.extend([x, self.gt, xrec])
         if return_original_cond:
             out.append(xc)
+        out.append(quave_embedding)
 
         return out
 
@@ -2287,11 +2339,11 @@ class LatentDiffusionSRTextWT(DDPM):
             return self.first_stage_model.encode(x)
 
     def shared_step(self, batch, **kwargs):
-        x, c, gt = self.get_input(batch, self.first_stage_key)
-        loss = self(x, c, gt)
+        x, c, gt, quave_embed = self.get_input(batch, self.first_stage_key)
+        loss = self(x, c, gt, quave_embed)
         return loss
 
-    def forward(self, x, c, gt, *args, **kwargs):
+    def forward(self, x, c, gt, quave_embed, *args, **kwargs):
         index = np.random.randint(0, self.num_timesteps, size=x.size(0))
         t = torch.from_numpy(index)
         t = t.to(self.device).long()
@@ -2312,7 +2364,7 @@ class LatentDiffusionSRTextWT(DDPM):
         if self.test_gt:
             struc_c = self.structcond_stage_model(gt, t_ori)
         else:
-            struc_c = self.structcond_stage_model(x, t_ori)
+            struc_c = self.structcond_stage_model(x, t_ori, quave_embed)
         return self.p_losses(gt, c, struc_c, t, t_ori, x, *args, **kwargs)
 
     def _rescale_annotations(self, bboxes, crop_coordinates):  # TODO: move to dataset
@@ -2859,6 +2911,7 @@ class LatentDiffusionSRTextWT(DDPM):
                       log_every_t=None, time_replace=None, adain_fea=None, interfea_path=None,
                       unconditional_conditioning=None,
                       unconditional_guidance_scale=None,
+                      quave_embed= None,
                       reference_sr=None, reference_lr=0.05, reference_step=1, reference_range=[100, 1000]):
 
         if not log_every_t:
@@ -2899,12 +2952,12 @@ class LatentDiffusionSRTextWT(DDPM):
                 if start_T is not None:
                     if self.ori_timesteps[i] > start_T:
                          continue
-                struct_cond_input = self.structcond_stage_model(struct_cond, t_replace)
+                struct_cond_input = self.structcond_stage_model(struct_cond, t_replace, quave_embed)
             else:
                 if start_T is not None:
                     if i > start_T:
                         continue
-                struct_cond_input = self.structcond_stage_model(struct_cond, ts)
+                struct_cond_input = self.structcond_stage_model(struct_cond, ts, quave_embed)
 
             if interfea_path is not None:
                 batch_list.append(struct_cond_input)
@@ -3059,6 +3112,7 @@ class LatentDiffusionSRTextWT(DDPM):
                mask=None, x0=None, shape=None, time_replace=None, adain_fea=None, interfea_path=None, start_T=None,
                unconditional_conditioning=None,
                unconditional_guidance_scale=None,
+               quave_embed = None,
                reference_sr=None, reference_lr=0.05, reference_step=1, reference_range=[100, 1000],
                **kwargs):
 
@@ -3078,7 +3132,7 @@ class LatentDiffusionSRTextWT(DDPM):
                                   mask=mask, x0=x0, time_replace=time_replace, adain_fea=adain_fea, interfea_path=interfea_path, start_T=start_T,
                                   unconditional_conditioning=unconditional_conditioning,
                                   unconditional_guidance_scale=unconditional_guidance_scale,
-                                  reference_sr=reference_sr, reference_lr=reference_lr, reference_step=reference_step, reference_range=reference_range)
+                                  reference_sr=reference_sr, reference_lr=reference_lr, reference_step=reference_step, reference_range=reference_range, quave_embed=quave_embed)
 
     @torch.no_grad()
     def sample_canvas(self, cond, struct_cond, batch_size=16, return_intermediates=False, x_T=None,
@@ -3127,7 +3181,7 @@ class LatentDiffusionSRTextWT(DDPM):
         use_ddim = ddim_steps is not None
 
         log = dict()
-        z, c_lq, z_gt, x, gt, yrec, xc = self.get_input(batch, self.first_stage_key,
+        z, c_lq, z_gt, x, gt, yrec, xc, quave_embed = self.get_input(batch, self.first_stage_key,
                                            return_first_stage_outputs=True,
                                            force_c_encode=True,
                                            return_original_cond=True,
@@ -3175,7 +3229,9 @@ class LatentDiffusionSRTextWT(DDPM):
                 else:
                     cur_time_step = 1000
 
-                samples, z_denoise_row = self.sample(cond=c, struct_cond=struct_cond, batch_size=N, timesteps=cur_time_step, return_intermediates=True, time_replace=self.time_replace)
+                samples, z_denoise_row = self.sample(cond=c, struct_cond=struct_cond, batch_size=N, 
+                                                     timesteps=cur_time_step, return_intermediates=True, time_replace=self.time_replace,
+                                                     quave_embed=quave_embed)
             x_samples = self.decode_first_stage(samples)
             log["samples"] = x_samples
             if plot_denoise_rows:

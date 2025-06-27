@@ -6,11 +6,9 @@
 
 
 <h5 align="center">
-     
- 
+
 [![arXiv](https://img.shields.io/badge/Arxiv-2505.00334-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2505.00334)
 [![IEEE Explore](https://img.shields.io/badge/IEEE-Explore-blue)](https://ieeexplore.ieee.org/document/YOUR_IJCNN_DOI_HERE)
-
 [![License](https://img.shields.io/badge/Code%20License-MIT-yellow)](https://github.com/Fascetta/ResQu/blob/main/LICENSE)
 ![visitors](https://visitor-badge.laobi.icu/badge?page_id=Fascetta/ResQu)
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Fascetta/ResQu)

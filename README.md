@@ -41,7 +41,7 @@ Unlike existing methods that demand heavy preprocessing, complex architectures, 
 ## 🚀 Main Results
 
 <div align=center><img src=assets/results_zoomed_page-0001.jpg width="75%" height="75%"></div>
-<div align=center><img src=assets/results_table_resqu.png" width="75%" height="75%"></div>
+<div align=center><img src="assets/Screenshot 2026-05-04 225338.png" width="75%" height="75%"></div>
 
 For more evaluation, please refer to our [paper](https://arxiv.org/abs/2505.00334) for details.
 

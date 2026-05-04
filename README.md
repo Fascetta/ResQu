@@ -1,6 +1,6 @@
 <h2 align="center"> <a href="https://arxiv.org/abs/2505.00334">[IJCNN 2025] ResQu: Quaternion Wavelet-Conditioned Diffusion Models for Image Super-Resolution</a></h2>
 
-<div align=center><img src="assets/network.png" width="500px"/></div>
+<div align=center><img src="assets/architecture_v3_page-0001.jpg" width="500px"/></div>
 
 <h5 align="center"> If you like our project, please give us a star ⭐ on GitHub for latest update. </h2>
 
@@ -40,7 +40,7 @@ Unlike existing methods that demand heavy preprocessing, complex architectures, 
 
 ## 🚀 Main Results
 
-<div align=center><img src=assets/resqu_comparison.png width="75%" height="75%"></div>
+<div align=center><img src=assets/results_zoomed_page-0001.jpg width="75%" height="75%"></div>
 <div align=center><img src=assets/results_table_resqu.png" width="75%" height="75%"></div>
 
 For more evaluation, please refer to our [paper](https://arxiv.org/abs/2505.00334) for details.

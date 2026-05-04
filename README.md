@@ -8,7 +8,7 @@
 <h5 align="center">
 
 [![arXiv](https://img.shields.io/badge/Arxiv-2505.00334-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2505.00334)
-[![IEEE Explore](https://img.shields.io/badge/IEEE-Explore-blue)](https://ieeexplore.ieee.org/document/YOUR_IJCNN_DOI_HERE)
+[![IEEE Explore](https://img.shields.io/badge/IEEE-Explore-blue)](https://ieeexplore.ieee.org/document/11228578)
 [![License](https://img.shields.io/badge/Code%20License-MIT-yellow)](https://github.com/Fascetta/ResQu/blob/main/LICENSE)
 ![visitors](https://visitor-badge.laobi.icu/badge?page_id=Fascetta/ResQu)
 ![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/Fascetta/ResQu)
@@ -110,15 +110,17 @@ CUDA_VISIBLE_DEVICES=N python src/resqu/evaluation/evaluate.py \
 Please cite our work if you found it useful:
 
 ```bibtex
-@misc{sigillo2025quaternionwaveletconditioneddiffusionmodels,
-      title={Quaternion Wavelet-Conditioned Diffusion Models for Image Super-Resolution}, 
-      author={Luigi Sigillo and Christian Bianchi and Aurelio Uncini and Danilo Comminiello},
-      year={2025},
-      eprint={2505.00334},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2505.00334}, 
-}
+@INPROCEEDINGS{11228578,
+  author={Sigillo, Luigi and Bianchi, Christian and Uncini, Aurelio and Comminiello, Danilo},
+  booktitle={2025 International Joint Conference on Neural Networks (IJCNN)}, 
+  title={Quaternion Wavelet-Conditioned Diffusion Models for Image Super-Resolution}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-8},
+  keywords={Wavelet transforms;Measurement;Deep learning;Satellites;Quaternions;Superresolution;Diffusion models;Robustness;Image reconstruction;Standards;Generative Deep Learning;Image Super resolution;Diffusion Models},
+  doi={10.1109/IJCNN64981.2025.11228578}}
+
 ```
 
 
